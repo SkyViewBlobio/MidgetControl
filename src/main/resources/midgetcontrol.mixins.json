@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "com.midgetcontrol.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": [
+    "NaturalSpawnerSpawnStateMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
+
