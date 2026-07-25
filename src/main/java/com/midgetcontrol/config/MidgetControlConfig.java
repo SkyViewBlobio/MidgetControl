@@ -14,7 +14,7 @@ import java.util.Properties;
 
 public final class MidgetControlConfig {
     private static final String DEFAULT_FILE = """
-            # MidgetControl 1.0.0
+            # MidgetControl 1.1.0
             # Natural caps are percentages of Minecraft's normal biome-spawn caps.
             # 100 = vanilla cap, 50 = half the vanilla cap, 0 = no natural spawns in that category.
             # These settings do not block spawners, trial spawners, breeding, spawn eggs, commands,
@@ -39,7 +39,7 @@ public final class MidgetControlConfig {
             # The TPS line is sent as the vanilla tab-list header. No client mod is needed.
             tab-tps.enabled=true
             tab-tps.update-interval-ticks=40
-            tab-tps.title=MidgetControl
+            tab-tps.title=MidgetCraft
             tab-tps.show-mspt=true
 
             # Player join/playtime data is stored per world in world/data/midgetcontrol-players.json.
@@ -85,7 +85,7 @@ public final class MidgetControlConfig {
 
         tabTpsEnabled = booleanValue(properties, "tab-tps.enabled", true, logger);
         tabTpsUpdateIntervalTicks = intValue(properties, "tab-tps.update-interval-ticks", 40, 10, 1200, logger);
-        tabTpsTitle = properties.getProperty("tab-tps.title", "MidgetControl").trim();
+        tabTpsTitle = tabTpsTitle(properties);
         tabTpsShowMspt = booleanValue(properties, "tab-tps.show-mspt", true, logger);
         autosaveIntervalSeconds = intValue(properties, "player-data.autosave-interval-seconds", 60, 10, 3600, logger);
         reloadPermissionLevel = intValue(properties, "admin.reload-permission-level", 4, 0, 4, logger);
@@ -169,6 +169,11 @@ public final class MidgetControlConfig {
             logger.warn("Invalid player-info.time-zone '{}'; using the server time zone", configured);
             return ZoneId.systemDefault();
         }
+    }
+
+    private static String tabTpsTitle(Properties properties) {
+        String title = properties.getProperty("tab-tps.title", "MidgetCraft").trim();
+        return title.equals("MidgetControl") ? "MidgetCraft" : title;
     }
 
     public boolean naturalSpawningEnabled() {

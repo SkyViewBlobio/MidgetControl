@@ -7,14 +7,22 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
+import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.server.dialog.CommonDialogData;
+import net.minecraft.server.dialog.DialogAction;
+import net.minecraft.server.dialog.NoticeDialog;
+import net.minecraft.server.dialog.body.PlainMessage;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public final class MidgetControlCommands {
@@ -22,7 +30,18 @@ public final class MidgetControlCommands {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, MidgetControl mod) {
-        if (MidgetControl.config().playerInfoShortCommand()) {
+        boolean shortInfoCommandRegistered = MidgetControl.config().playerInfoShortCommand();
+        dispatcher.register(Commands.literal("midgethelp")
+                .requires(CommandSourceStack::isPlayer)
+                .executes(context -> showHelp(context, shortInfoCommandRegistered)));
+        dispatcher.register(Commands.literal("blipon")
+                .requires(CommandSourceStack::isPlayer)
+                .executes(context -> setBlipVisibility(context, mod, true)));
+        dispatcher.register(Commands.literal("blipoff")
+                .requires(CommandSourceStack::isPlayer)
+                .executes(context -> setBlipVisibility(context, mod, false)));
+
+        if (shortInfoCommandRegistered) {
             dispatcher.register(Commands.literal("info")
                     .requires(source -> canUseInfo(source, MidgetControl.config()))
                     .then(infoArgument(mod)));
@@ -90,6 +109,80 @@ public final class MidgetControlCommands {
         }
         context.getSource().sendFailure(Component.literal("MidgetControl config reload failed. Check the server log."));
         return 0;
+    }
+
+    private static int setBlipVisibility(
+            CommandContext<CommandSourceStack> context,
+            MidgetControl mod,
+            boolean visible
+    ) throws CommandSyntaxException {
+        if (mod.playerDataStore() == null) {
+            context.getSource().sendFailure(Component.literal("Player data is not available yet."));
+            return 0;
+        }
+
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        boolean updated = mod.setBlipVisible(player, visible);
+        if (!updated) {
+            context.getSource().sendFailure(Component.literal(
+                    "The blip changed for this session, but MidgetControl could not fully apply or save it. Check the server log."
+            ));
+            return 0;
+        }
+
+        String message = visible
+                ? "Your locator blip is now visible to other players."
+                : "Your locator blip is now hidden from other players.";
+        context.getSource().sendSystemMessage(Component.literal(message).withStyle(ChatFormatting.GREEN));
+        return 1;
+    }
+
+    private static int showHelp(
+            CommandContext<CommandSourceStack> context,
+            boolean shortInfoCommandRegistered
+    ) throws CommandSyntaxException {
+        CommonDialogData common = new CommonDialogData(
+                Component.literal("MidgetCraft Commands").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD),
+                Optional.empty(),
+                true,
+                false,
+                DialogAction.CLOSE,
+                List.of(new PlainMessage(
+                        buildHelpBody(MidgetControl.config(), shortInfoCommandRegistered),
+                        360
+                )),
+                List.of()
+        );
+        context.getSource().getPlayerOrException()
+                .openDialog(Holder.direct(new NoticeDialog(common, NoticeDialog.DEFAULT_ACTION)));
+        return 1;
+    }
+
+    static MutableComponent buildHelpBody(MidgetControlConfig config, boolean shortInfoCommandRegistered) {
+        MutableComponent body = Component.empty();
+        appendHelpLine(body, "/midgethelp", "shows you all the available commands.");
+        appendHelpLine(body, "/blipon", "lets other players see your blip on the locator bar.");
+        appendHelpLine(body, "/blipoff", "hides your locator-bar blip from other players.");
+        if (config.playerInfoEnabled()) {
+            if (shortInfoCommandRegistered) {
+                appendHelpLine(body, "/info <player>", "shows join date, online time, player kills, and deaths.");
+            }
+            appendHelpLine(
+                    body,
+                    "/midgetcontrol info <player>",
+                    "shows join date, online time, player kills, and deaths."
+            );
+        }
+        appendHelpLine(body, "/midgetcontrol reload", "reloads the config (server owner only).");
+        return body;
+    }
+
+    private static void appendHelpLine(MutableComponent body, String command, String description) {
+        if (!body.getString().isEmpty()) {
+            body.append("\n\n");
+        }
+        body.append(Component.literal(command).withStyle(ChatFormatting.GOLD))
+                .append(Component.literal(" " + description).withStyle(ChatFormatting.GRAY));
     }
 
     static String formatDuration(long millis) {

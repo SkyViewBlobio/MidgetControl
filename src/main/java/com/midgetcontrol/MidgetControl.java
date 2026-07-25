@@ -2,16 +2,19 @@ package com.midgetcontrol;
 
 import com.midgetcontrol.command.MidgetControlCommands;
 import com.midgetcontrol.config.MidgetControlConfig;
+import com.midgetcontrol.player.PlayerBlipControl;
 import com.midgetcontrol.player.PlayerDataStore;
 import com.midgetcontrol.tps.TabTpsDisplay;
 import com.mojang.logging.LogUtils;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -45,6 +48,7 @@ public final class MidgetControl implements ModInitializer {
             if (playerDataStore != null) {
                 playerDataStore.onJoin(listener.getPlayer());
             }
+            applyBlipPreference(listener.getPlayer());
             tabTpsDisplay.sendNow(server, listener.getPlayer(), config);
         });
         ServerPlayConnectionEvents.DISCONNECT.register((listener, server) -> {
@@ -52,6 +56,8 @@ public final class MidgetControl implements ModInitializer {
                 playerDataStore.onDisconnect(listener.getPlayer());
             }
         });
+        ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) ->
+                applyBlipPreference(newPlayer));
 
         ServerTickEvents.END_SERVER_TICK.register(this::onServerTick);
         LOGGER.info("MidgetControl initialized for Minecraft 26.2");
@@ -119,6 +125,22 @@ public final class MidgetControl implements ModInitializer {
 
     public PlayerDataStore playerDataStore() {
         return playerDataStore;
+    }
+
+    public boolean setBlipVisible(ServerPlayer player, boolean visible) {
+        PlayerDataStore store = playerDataStore;
+        if (store == null) {
+            return false;
+        }
+        boolean saved = store.setBlipVisible(player, visible);
+        boolean applied = PlayerBlipControl.apply(player, visible);
+        return saved && applied;
+    }
+
+    private void applyBlipPreference(ServerPlayer player) {
+        PlayerDataStore store = playerDataStore;
+        boolean visible = store != null && store.isBlipVisible(player.getUUID());
+        PlayerBlipControl.apply(player, visible);
     }
 
     public static MidgetControlConfig config() {

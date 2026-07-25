@@ -48,6 +48,10 @@ public final class PlayerDataStore {
         Path dataFile = server.getWorldPath(LevelResource.ROOT)
                 .resolve("data")
                 .resolve("midgetcontrol-players.json");
+        return open(dataFile, logger);
+    }
+
+    static PlayerDataStore open(Path dataFile, Logger logger) {
         PlayerDataStore store = new PlayerDataStore(dataFile, logger);
         store.load();
         return store;
@@ -114,6 +118,29 @@ public final class PlayerDataStore {
                 .map(player -> player.lastKnownName)
                 .filter(name -> name != null && !name.isBlank())
                 .distinct();
+    }
+
+    public boolean isBlipVisible(UUID playerId) {
+        StoredPlayer stored = players.get(playerId);
+        return stored != null && stored.blipVisible;
+    }
+
+    public boolean setBlipVisible(ServerPlayer player, boolean visible) {
+        long nowEpochMillis = System.currentTimeMillis();
+        StoredPlayer stored = getOrCreate(player, nowEpochMillis);
+        stored.lastKnownName = player.getName().getString();
+        stored.lastSeenEpochMillis = nowEpochMillis;
+        updateStats(stored, player);
+        return setBlipVisible(player.getUUID(), visible);
+    }
+
+    boolean setBlipVisible(UUID playerId, boolean visible) {
+        StoredPlayer stored = players.get(playerId);
+        if (stored == null) {
+            return false;
+        }
+        stored.blipVisible = visible;
+        return save();
     }
 
     private StoredPlayer getOrCreate(ServerPlayer player, long now) {
@@ -232,6 +259,7 @@ public final class PlayerDataStore {
         private long onlineMillis;
         private int playerKills;
         private int deaths;
+        private boolean blipVisible;
 
         private PlayerInfo toInfo(long currentOnlineMillis) {
             return new PlayerInfo(

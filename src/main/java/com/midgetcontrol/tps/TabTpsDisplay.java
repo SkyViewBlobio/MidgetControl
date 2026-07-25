@@ -32,15 +32,14 @@ public final class TabTpsDisplay {
         if (!config.tabTpsEnabled()) {
             return;
         }
-        ClientboundTabListPacket packet = createPacket(server, config);
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            player.connection.send(packet);
+            player.connection.send(createPacket(server, player, config));
         }
     }
 
     public void sendNow(MinecraftServer server, ServerPlayer player, MidgetControlConfig config) {
         if (config.tabTpsEnabled()) {
-            player.connection.send(createPacket(server, config));
+            player.connection.send(createPacket(server, player, config));
         }
     }
 
@@ -51,7 +50,11 @@ public final class TabTpsDisplay {
         }
     }
 
-    private static ClientboundTabListPacket createPacket(MinecraftServer server, MidgetControlConfig config) {
+    private static ClientboundTabListPacket createPacket(
+            MinecraftServer server,
+            ServerPlayer player,
+            MidgetControlConfig config
+    ) {
         double targetTps = server.tickRateManager().tickrate();
         long averageTickTimeNanos = server.getAverageTickTimeNanos();
         double mspt = averageTickTimeNanos / 1_000_000.0;
@@ -72,6 +75,21 @@ public final class TabTpsDisplay {
             header.append(Component.literal(String.format(Locale.ROOT, "  |  MSPT: %.1f", mspt))
                     .withStyle(ChatFormatting.DARK_GRAY));
         }
-        return new ClientboundTabListPacket(header, Component.empty());
+
+        int playerCount = server.getPlayerList().getPlayerCount();
+        if (!server.getPlayerList().getPlayers().contains(player)) {
+            playerCount++;
+        }
+        Component footer = createFooter(playerCount, player.connection.latency());
+        return new ClientboundTabListPacket(header, footer);
+    }
+
+    static Component createFooter(int playerCount, int latency) {
+        return Component.empty()
+                .append(Component.literal("Players: ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(Integer.toString(playerCount)).withStyle(ChatFormatting.WHITE))
+                .append(Component.literal(" | ").withStyle(ChatFormatting.DARK_GRAY))
+                .append(Component.literal("Ping: ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(Math.max(0, latency) + "ms").withStyle(ChatFormatting.WHITE));
     }
 }
